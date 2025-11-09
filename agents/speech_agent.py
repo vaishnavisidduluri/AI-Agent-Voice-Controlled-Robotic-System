@@ -207,3 +207,17 @@ if __name__ == "__main__":
         cont = input("\n🔄 Test again? (y/n): ")
         if cont.lower() != 'y':
             break
+
+from flask import Flask, jsonify
+from speech_agent import SpeechAgent
+
+app = Flask(__name__)
+speech_agent = SpeechAgent()
+
+@app.route('/speech/latest', methods=['GET'])
+def get_latest_speech():
+    result = speech_agent.listen_and_understand()
+    return jsonify(result)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8002)

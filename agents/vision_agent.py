@@ -271,3 +271,25 @@ if __name__ == "__main__":
     
     finally:
         agent.stop_camera()
+
+
+from flask import Flask, jsonify
+from vision_agent import VisionAgent
+
+app = Flask(__name__)
+vision_agent = VisionAgent()
+
+@app.route('/vision/latest', methods=['GET'])
+def get_latest_vision():
+    frame_data = vision_agent.capture_frame()
+    detections = vision_agent.detect_objects(frame_data)
+    response = {
+        "timestamp": vision_agent.timestamp(),
+        "frame_b64": frame_data["frame_b64"],
+        "detections": detections,
+        "status": "ok"
+    }
+    return jsonify(response)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8001)
