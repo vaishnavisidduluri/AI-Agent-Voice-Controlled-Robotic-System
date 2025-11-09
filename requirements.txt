@@ -16,3 +16,7 @@ python-dotenv>=1.0.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 loguru>=0.7.0
+streamlit>=1.18
+streamlit-lottie
+requests
+plotly>=5.0.0
