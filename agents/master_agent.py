@@ -256,18 +256,72 @@ class MasterAgent:
         print("="*60 + "\n")
 
 
+from flask import Flask, jsonify
+import requests
+from datetime import datetime
+
+app = Flask(__name__)
+
+# Global master agent instance (initialized when running as API)
+master_agent = None
+
+@app.route('/master/status', methods=['GET'])
+def get_master_status():
+    """Get overall system status from all agents"""
+    try:
+        status = {
+            "timestamp": datetime.now().isoformat(),
+            "system_status": "operational" if master_agent and master_agent.running else "stopped",
+            "agents": {}
+        }
+
+        # Fetch from individual agents
+        agent_endpoints = {
+            "speech": "http://localhost:8002/speech/latest",
+            "vision": "http://localhost:8001/vision/latest",
+            "learning": "http://localhost:8003/learning/latest"
+        }
+
+        for agent_name, url in agent_endpoints.items():
+            try:
+                response = requests.get(url, timeout=2)
+                if response.status_code == 200:
+                    status["agents"][agent_name] = response.json()
+                else:
+                    status["agents"][agent_name] = {"error": f"HTTP {response.status_code}"}
+            except Exception as e:
+                status["agents"][agent_name] = {"error": str(e)}
+
+        # Add motor status (simulated for now)
+        status["agents"]["motor"] = {
+            "status": "simulation" if master_agent else "unknown",
+            "connected": False  # Will be updated when hardware is connected
+        }
+
+        return jsonify(status)
+
+    except Exception as e:
+        return jsonify({"error": str(e), "status": "error"}), 500
+
 # Main entry point
 if __name__ == "__main__":
-    print("\n" + "="*60)
-    print("🤖 AI-POWERED VOICE-CONTROLLED ROBOTIC GRASPING SYSTEM")
-    print("="*60)
-    
-    try:
-        master = MasterAgent()
-        master.start()
-        
-    except Exception as e:
-        print(f"\n❌ System error: {e}")
-        import traceback
-        traceback.print_exc()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "api":
+        # Run as API server
+        master_agent = MasterAgent()
+        app.run(host="0.0.0.0", port=8000)
+    else:
+        # Run normal system
+        print("\n" + "="*60)
+        print("🤖 AI-POWERED VOICE-CONTROLLED ROBOTIC GRASPING SYSTEM")
+        print("="*60)
+
+        try:
+            master = MasterAgent()
+            master.start()
+
+        except Exception as e:
+            print(f"\n❌ System error: {e}")
+            import traceback
+            traceback.print_exc()
 
