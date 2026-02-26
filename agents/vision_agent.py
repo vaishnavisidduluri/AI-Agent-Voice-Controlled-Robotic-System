@@ -275,17 +275,28 @@ if __name__ == "__main__":
 
 from flask import Flask, jsonify
 from vision_agent import VisionAgent
+import base64
+import cv2
+from datetime import datetime
 
 app = Flask(__name__)
 vision_agent = VisionAgent()
 
 @app.route('/vision/latest', methods=['GET'])
 def get_latest_vision():
-    frame_data = vision_agent.capture_frame()
-    detections = vision_agent.detect_objects(frame_data)
+    frame = vision_agent.capture_frame()
+    if frame is None:
+        return jsonify({"error": "Camera not available", "status": "error"}), 500
+
+    detections = vision_agent.detect_objects(frame)
+
+    # Encode frame to base64
+    _, buffer = cv2.imencode('.jpg', frame)
+    frame_b64 = base64.b64encode(buffer).decode('utf-8')
+
     response = {
-        "timestamp": vision_agent.timestamp(),
-        "frame_b64": frame_data["frame_b64"],
+        "timestamp": datetime.now().isoformat(),
+        "frame_b64": frame_b64,
         "detections": detections,
         "status": "ok"
     }

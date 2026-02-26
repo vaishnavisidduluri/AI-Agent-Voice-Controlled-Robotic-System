@@ -216,7 +216,7 @@ speech_agent = SpeechAgent()
 
 @app.route('/speech/latest', methods=['GET'])
 def get_latest_speech():
-    result = speech_agent.listen_and_understand()
+    result = speech_agent.get_command()
     return jsonify(result)
 
 if __name__ == "__main__":

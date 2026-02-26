@@ -22,6 +22,8 @@ import json
 # Agent Endpoints (make sure they match your Flask APIs)
 SPEECH_API = "http://localhost:8002/speech/latest"
 VISION_API = "http://localhost:8001/vision/latest"
+LEARNING_API = "http://localhost:8003/learning/latest"
+MASTER_API = "http://localhost:8000/master/status"
 
 # Helper functions
 def fetch_speech_data():
@@ -34,6 +36,20 @@ def fetch_speech_data():
 def fetch_vision_data():
     try:
         res = requests.get(VISION_API, timeout=5)
+        return res.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def fetch_learning_data():
+    try:
+        res = requests.get(LEARNING_API, timeout=5)
+        return res.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def fetch_master_data():
+    try:
+        res = requests.get(MASTER_API, timeout=5)
         return res.json()
     except Exception as e:
         return {"error": str(e)}
@@ -262,17 +278,17 @@ with tab1:
         }
         </style>
         ''', unsafe_allow_html=True)
-        typed = st.text_input("COMMAND:", placeholder="pick the bottle")
-        if st.button("📤 SEND"):
-            if typed:
-                words = typed.lower().split()
-                action = "pick" if "pick" in words or "grab" in words else "place"
-                obj = next((w for w in ["bottle", "cup", "box"] if w in words), "object")
-                st.session_state.last_command = {"action": action, "object": obj, "confidence": 0.9}
-                add_log("speech", f"TEXT: {typed}", "success")
-                st.success(f"✅ {action.upper()} {obj.upper()}")
+        if st.button("🎤 FETCH LATEST COMMAND", use_container_width=True):
+            with st.spinner("Fetching from Speech Agent..."):
+                speech_data = fetch_speech_data()
+                if "data" in speech_data:
+                    st.session_state.last_command = speech_data["data"]
+                    add_log("speech", f"CMD: {speech_data['data'].get('action', 'unknown')}", "success")
+                    st.success("✅ Command fetched!")
+                else:
+                    st.error("❌ Failed to fetch command")
         st.markdown('</div>', unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
         st.markdown("### 🎯 INTENT")
@@ -281,6 +297,7 @@ with tab1:
             col_a, col_b = st.columns(2)
             col_a.metric("ACTION", cmd.get("action", "—").upper())
             col_b.metric("OBJECT", cmd.get("object", "—").upper())
+            st.metric("CONFIDENCE", f"{cmd.get('confidence', 0):.2f}")
             if st.button("✅ EXECUTE", use_container_width=True):
                 st.success("⚡ DISPATCHED")
         else:

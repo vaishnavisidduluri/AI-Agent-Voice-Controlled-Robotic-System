@@ -254,4 +254,19 @@ if __name__ == "__main__":
     print(json.dumps(report['data'], indent=2))
 
 
+from flask import Flask, jsonify
+from learning_agent import LearningAgent
+
+app = Flask(__name__)
+learning_agent = LearningAgent()
+
+@app.route('/learning/latest', methods=['GET'])
+def get_latest_learning():
+    report = learning_agent.get_performance_report()
+    return jsonify(report)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8003)
+
+
 
