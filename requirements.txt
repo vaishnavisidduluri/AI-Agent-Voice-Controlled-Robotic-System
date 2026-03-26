@@ -1,7 +1,7 @@
 speechrecognition
 pyaudio
 opencv-python
-numpy>=1.24.0
+numpy==2.2.6
 pillow>=10.0.0
 pandas
 matplotlib
