@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from ultralytics import YOLO
 
 class ObjectDetector:
@@ -26,3 +27,20 @@ class ObjectDetector:
             })
 
         return detections
+=======
+def detect_objects():
+    """
+    YOLO object detection stub for testing.
+    Returns list of detections or empty list.
+    """
+    # Simulate detection for testing
+    return [
+        {
+            "label": "bottle",
+            "confidence": 0.85,
+            "x": 320,
+            "y": 240,
+            "bbox": [300, 220, 60, 80]
+        }
+    ]
+>>>>>>> 67f8e8c (Added vision module files)
