@@ -1,0 +1,158 @@
+{
+  "history": [
+    {
+      "command": {
+        "action": "drop",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "move",
+        "object": null,
+        "destination": "left",
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "move",
+        "object": null,
+        "destination": "right",
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "move",
+        "object": null,
+        "destination": "right",
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "drop",
+        "object": "been",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "been",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "move",
+        "object": null,
+        "destination": "left",
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "drop",
+        "object": "pin",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "been",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "model",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "up",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "border",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    }
+  ],
+  "memory": {
+    "last_command": {
+      "action": "pick",
+      "object": "bottle",
+      "destination": null,
+      "confidence": 0.95
+    },
+    "last_object": "vase",
+    "last_result": "success"
+  }
+}

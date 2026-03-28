@@ -25,6 +25,14 @@ class TaskPlanner:
 
         if action == "stop":
             return {"status":"ok","steps":[]}
+        
+        if action == "drop":
+            return {
+                "status": "ok",
+                "steps": [
+                    {"gripper": "open", "delay": 0.5}
+                ]
+            }
 
         return {"status":"error","message":"Unknown action"}
 

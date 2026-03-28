@@ -1,7 +1,7 @@
 
 from ultralytics import YOLO
 
-class ObjectDetector:
+class detect_objects:
     def __init__(self, model_path="yolov8n.pt"):
         self.model = YOLO(model_path)
 

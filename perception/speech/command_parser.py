@@ -3,12 +3,12 @@ import json
 
 def parse_command(text):
     parser = CommandParser(
-        "robot",
+        "robo",
         ["move left", "move up", "move down", "move right",
          "pick up", "drop", "open gripper", "close gripper", "stop"]
     )
 
-    # ✅ Enforce wake word
+    #  Enforce wake word
     if not parser.check_wake_word(text):
         print("Wake word not detected.")
         return None
@@ -40,7 +40,7 @@ class CommandParser:
 
         text = text.lower()
 
-        # ✅ Remove wake word
+        #  Remove wake word
         if self.wake_word in text:
             text = text.replace(self.wake_word, "").strip()
 
