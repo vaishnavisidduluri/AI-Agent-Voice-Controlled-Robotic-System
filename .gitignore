@@ -10,3 +10,4 @@ venv/
 
 # API Keys & Secrets
 config/api_keys.env
+.env
