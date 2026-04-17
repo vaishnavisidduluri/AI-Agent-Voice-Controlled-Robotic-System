@@ -143,16 +143,70 @@
         "confidence": 0.95
       },
       "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
+    },
+    {
+      "command": {
+        "action": "pick",
+        "object": "bottle",
+        "destination": null,
+        "confidence": 0.95
+      },
+      "result": "success"
     }
   ],
   "memory": {
     "last_command": {
       "action": "pick",
-      "object": "bottle",
+      "object": "phone",
       "destination": null,
       "confidence": 0.95
     },
-    "last_object": "vase",
+    "last_object": "cell phone",
     "last_result": "success"
   }
 }

@@ -1,140 +1,120 @@
 class TaskPlanner:
 
     def __init__(self):
-        self.state = "IDLE"
+        self.state = "idle"
+        self.holding = False
 
-    def plan_task(self, command, detections):
-        self.state = "IDLE"
-
-        if not command:
-            return {"status": "error", "message": "No command"}
+    def plan_task(self, command, detections, context):
 
         action = command.get("action")
+        obj = command.get("object")
 
-        if action == "pick":
-            return self._fsm_pick(detections)
-
-        if action == "move":
-            return self._plan_move(command["destination"])
-
-        if action == "open_gripper":
-            return {"status": "ok", "steps":[{"gripper":"open", 'delay': 0.5}]}
-
-        if action == "close_gripper":
-            return {"status": "ok", "steps":[{"gripper":"close", 'delay': 0.5}]}
-
-        if action == "stop":
-            return {"status":"ok","steps":[]}
-        
-        if action == "drop":
+        # -----------------------------
+        # 🚫 STATE SAFETY
+        # -----------------------------
+        if self.holding and action in ["pick", "bring"]:
             return {
-                "status": "ok",
-                "steps": [
-                    {"gripper": "open", "delay": 0.5}
-                ]
+                "status": "error",
+                "message": "Already holding object. Drop first."
             }
 
-        return {"status":"error","message":"Unknown action"}
+        if not self.holding and action == "drop":
+            return {
+                "status": "error",
+                "message": "Nothing to drop"
+            }
+
+        # -----------------------------
+        # 🎯 ACTION LOGIC
+        # -----------------------------
+
+        if action == "pick":
+            return self._plan_pick()
+
+        elif action == "bring":
+            return self._plan_bring()
+
+        elif action == "drop":
+            return self._plan_drop()
+
+        elif action == "move":
+            return self._plan_move(command.get("destination"))
+
+        return {"status": "error", "message": "Invalid action"}
 
     # ---------------------------------
-    # FSM for PICK task
+    # PICK
     # ---------------------------------
+    def _plan_pick(self):
 
-    def _fsm_pick(self, detections):
+        steps = [
+            {"gripper": "open"},
+            {"servo_id": 1, "angle": 90},
+            {"servo_id": 2, "angle": 50},
+            {"servo_id": 3, "angle": 70},
+            {"gripper": "close"},
+            {"servo_id": 3, "angle": 40}
+        ]
 
-        steps = []
+        self.holding = True
+        self.state = "holding"
 
-        while True:
-
-            # STATE 1
-            if self.state == "IDLE":
-                self.state = "LOCATE_OBJECT"
-
-            # STATE 2
-            elif self.state == "LOCATE_OBJECT":
-
-                if not detections:
-                    return {"status":"error","message":"Object not detected"}
-
-                obj = detections[0]
-                self.target = obj
-                self.state = "MOVE_TO_OBJECT"
-
-            # STATE 3
-            elif self.state == "MOVE_TO_OBJECT":
-
-                steps.append({"servo_id":1,"angle":90, 'delay': 0.5})
-                steps.append({"servo_id":2,"angle":50, 'delay': 0.5})
-
-                self.state = "LOWER_ARM"
-
-            # STATE 4
-            elif self.state == "LOWER_ARM":
-
-                steps.append({"servo_id":3,"angle":70, 'delay': 0.5})
-
-                self.state = "CLOSE_GRIPPER"
-
-            # STATE 5
-            elif self.state == "CLOSE_GRIPPER":
-
-                steps.append({"gripper":"close", 'delay': 0.5})
-
-                self.state = "LIFT_OBJECT"
-
-            # STATE 6
-            elif self.state == "LIFT_OBJECT":
-
-                steps.append({"servo_id":3,"angle":40, 'delay': 0.5})
-
-                self.state = "DONE"
-
-            # FINAL
-            elif self.state == "DONE":
-
-                self.state = "IDLE"
-
-                return {
-                    "status":"ok",
-                    "steps":steps
-                }
+        return {"status": "ok", "steps": steps}
 
     # ---------------------------------
+    # BRING (🔥 FIXED)
+    # ---------------------------------
+    def _plan_bring(self):
 
+        steps = [
+            {"gripper": "open"},
+            {"servo_id": 1, "angle": 90},
+            {"servo_id": 2, "angle": 50},
+            {"servo_id": 3, "angle": 70},
+            {"gripper": "close"},
+            {"servo_id": 3, "angle": 40},
+
+            # 🔥 RETURN HOME
+            {"servo_id": 1, "angle": 90},
+            {"servo_id": 2, "angle": 40},
+
+            # 🔥 DROP
+            {"gripper": "open"}
+        ]
+
+        self.holding = False
+        self.state = "idle"
+
+        return {"status": "ok", "steps": steps}
+
+    # ---------------------------------
+    # DROP
+    # ---------------------------------
+    def _plan_drop(self):
+
+        steps = [{"gripper": "open"}]
+
+        self.holding = False
+        self.state = "idle"
+        self.update_after_action("drop", success=True)
+
+        return {"status": "ok", "steps": steps}
+
+    # ---------------------------------
+    # MOVE
+    # ---------------------------------
     def _plan_move(self, direction):
 
         if direction == "left":
-            return {"status":"ok","steps":[{"servo_id":1,"angle":60, 'delay': 0.5}]}
+            return {"status": "ok", "steps": [{"move": "left"}]}
 
         if direction == "right":
-            return {"status":"ok","steps":[{"servo_id":1,"angle":120, 'delay': 0.5}]}
+            return {"status": "ok", "steps": [{"move": "right"}]}
 
-        if direction == "up":
-            return {"status":"ok","steps":[{"servo_id":2,"angle":40, 'delay': 0.5}]}
+        if direction == "forward":
+            return {"status": "ok", "steps": [{"move": "forward"}]}
 
-        if direction == "down":
-            return {"status":"ok","steps":[{"servo_id":2,"angle":80, 'delay': 0.5}]}
+        if direction == "backward":
+            return {"status": "ok", "steps": [{"move": "backward"}]}
 
-        return {"status":"error","message":"Invalid direction"}
-
-
-
-if __name__ == "__main__":
-
-    planner = TaskPlanner()
-
-    # example parsed command
-    parsed_command = {
-        "action": "pick"
-    }
-
-    # example detections from object detector
-    detections = [
-        {"label": "bottle", "x": 100, "y": 200}
-    ]
-
-    result = planner.plan_task(parsed_command, detections)
-
-    print("Planner Output:")
-    print(result)
-
+        return {"status": "error", "message": "Invalid move"}

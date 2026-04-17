@@ -25,3 +25,17 @@ class MotorControlAgent:
                     }
 
         return {"safe": True, "reason": None}
+    
+
+class MobileBase:
+    def move_forward(self):
+        print("Moving forward")
+
+    def stop(self):
+        print("Stopping")
+
+    def turn_left(self):
+        print("Turning left")
+
+    def turn_right(self):
+        print("Turning right")

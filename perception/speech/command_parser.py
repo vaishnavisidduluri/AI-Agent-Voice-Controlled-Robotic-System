@@ -5,10 +5,9 @@ def parse_command(text):
     parser = CommandParser(
         "robo",
         ["move left", "move up", "move down", "move right",
-         "pick up", "drop", "open gripper", "close gripper", "stop"]
+         "pick up", "drop", "open gripper", "close gripper", "stop", "bring"]
     )
 
-    #  Enforce wake word
     if not parser.check_wake_word(text):
         print("Wake word not detected.")
         return None
@@ -26,9 +25,7 @@ class CommandParser:
         if not text:
             return False
 
-        text = text.lower()
-
-        if self.wake_word in text:
+        if self.wake_word in text.lower():
             print("Wake word detected!")
             return True
 
@@ -38,11 +35,7 @@ class CommandParser:
         if not text:
             return None
 
-        text = text.lower()
-
-        #  Remove wake word
-        if self.wake_word in text:
-            text = text.replace(self.wake_word, "").strip()
+        text = text.lower().replace(self.wake_word, "").strip()
 
         structured_output = {
             "action": None,
@@ -53,8 +46,10 @@ class CommandParser:
 
         words = text.split()
 
+        IGNORE = ["the", "a", "an", "me", "that"]
+
         # -------------------------
-        # MOVE COMMAND
+        # MOVE
         # -------------------------
         if "move" in words:
             structured_output["action"] = "move"
@@ -64,22 +59,21 @@ class CommandParser:
             elif "right" in words:
                 structured_output["destination"] = "right"
             elif "up" in words:
-                structured_output["destination"] = "up"
+                structured_output["destination"] = "forward"
             elif "down" in words:
-                structured_output["destination"] = "down"
+                structured_output["destination"] = "backward"
 
             print("Valid command: move")
             return structured_output
 
         # -------------------------
-        # PICK COMMAND
+        # PICK
         # -------------------------
-        elif "pick" in words or "grab" in words or "take" in words:
+        elif any(w in words for w in ["pick", "grab", "take"]):
             structured_output["action"] = "pick"
 
-            # ✅ Extract object (last meaningful word)
             for w in reversed(words):
-                if w not in ["pick", "grab", "take", "the", "a", "an"]:
+                if w not in ["pick", "grab", "take"] + IGNORE:
                     structured_output["object"] = w
                     break
 
@@ -87,13 +81,27 @@ class CommandParser:
             return structured_output
 
         # -------------------------
-        # DROP / PLACE
+        # BRING
+        # -------------------------
+        elif any(w in words for w in ["bring", "give", "deliver"]):
+            structured_output["action"] = "bring"
+
+            for w in reversed(words):
+                if w not in ["bring", "give", "deliver"] + IGNORE:
+                    structured_output["object"] = w
+                    break
+
+            print("Valid command: bring")
+            return structured_output
+
+        # -------------------------
+        # DROP
         # -------------------------
         elif "drop" in words or "place" in words:
             structured_output["action"] = "drop"
 
             for w in reversed(words):
-                if w not in ["drop", "place", "the", "a", "an"]:
+                if w not in ["drop", "place"] + IGNORE:
                     structured_output["object"] = w
                     break
 
@@ -105,12 +113,10 @@ class CommandParser:
         # -------------------------
         elif "open" in words:
             structured_output["action"] = "open_gripper"
-            print("Valid command: open gripper")
             return structured_output
 
         elif "close" in words:
             structured_output["action"] = "close_gripper"
-            print("Valid command: close gripper")
             return structured_output
 
         # -------------------------
@@ -118,7 +124,6 @@ class CommandParser:
         # -------------------------
         elif "stop" in words:
             structured_output["action"] = "stop"
-            print("Valid command: stop")
             return structured_output
 
         print("Invalid command.")

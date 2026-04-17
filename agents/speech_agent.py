@@ -2,7 +2,7 @@ from perception.speech.speech_recognizer import SpeechRecognizer
 from perception.speech.command_parser import parse_command
 
 # 🔥 CONFIG
-USE_MIC = True   # ← change to True for mic, False for typing
+USE_MIC = False   # ← change to True for mic, False for typing
 
 recognizer = SpeechRecognizer("models/vosk-model-small-en-us-0.15")
 

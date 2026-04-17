@@ -10,9 +10,9 @@ def main():
         system = MasterAgent()
         system.run()
     except KeyboardInterrupt:
-        print("\n👋 System stopped.")
+        print("\n System stopped.")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
 
 if __name__ == "__main__":
     main()

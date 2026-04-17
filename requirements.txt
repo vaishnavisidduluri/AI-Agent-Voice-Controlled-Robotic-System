@@ -20,3 +20,10 @@ streamlit>=1.18
 streamlit-lottie
 requests
 plotly>=5.0.0
+langchain
+langgraph
+openai
+langchain-openai
+pydantic
+vosk
+langchain-community

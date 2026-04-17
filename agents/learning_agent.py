@@ -6,11 +6,20 @@ class LearningAgent:
 
     def __init__(self, file_path="memory.json"):
         self.file_path = file_path
+
+        # --- STATE ---
+        self.state = "idle"   # idle, searching, approaching, picking, holding, returning, dropping, error
+        self.holding = False
+        self.current_object = None
+        self.last_command = None
+        self.position = "home"
+
+        # --- MEMORY ---
         self.history = []
         self.memory = {}
         self.retry_count = 0
 
-        # Load memory safely
+        # Load memory
         if os.path.exists(self.file_path):
             try:
                 with open(self.file_path, "r") as f:
@@ -19,8 +28,6 @@ class LearningAgent:
                     self.memory = data.get("memory", {})
             except:
                 print("⚠️ Memory corrupted. Resetting...")
-                self.history = []
-                self.memory = {}
 
     # -----------------------------
     # SAVE MEMORY
@@ -33,12 +40,69 @@ class LearningAgent:
             }, f, indent=2)
 
     # -----------------------------
-    # UPDATE SHORT MEMORY
+    # STATE MANAGEMENT
     # -----------------------------
-    def update(self, key, value):
+    def update_state(self, new_state):
+        print(f" State: {self.state} → {new_state}")
+        self.state = new_state
+
+    # -----------------------------
+    # VALIDATE COMMAND (CORE LOGIC)
+    # -----------------------------
+    def validate_command(self, command):
+        action = command.get("action")
+        obj = command.get("object")
+
+        # Save last command
+        self.last_command = command
+
+        # --- INVALID CASES ---
+        if action == "pick" and self.holding:
+            return False, "Already holding an object"
+
+        if action == "drop" and not self.holding:
+            return False, "No object to drop"
+
+        if action == "bring" and self.holding:
+            return False, "Already holding something, cannot bring"
+
+        # --- VALID ---
+        self.current_object = obj
+        return True, None
+
+    # -----------------------------
+    # UPDATE AFTER ACTION
+    # -----------------------------
+    def update_after_action(self, action, success=True):
+        if not success:
+            self.update_state("error")
+            return
+
+        if action == "search":
+            self.update_state("searching")
+
+        elif action == "approach":
+            self.update_state("approaching")
+
+        elif action == "pick":
+            self.holding = True
+            self.update_state("holding")
+
+        elif action == "return_home":
+            self.position = "home"
+            self.update_state("returning")
+
+        elif action == "drop":
+            self.holding = False
+            self.current_object = None
+            self.update_state("idle")
+
+    # -----------------------------
+    # MEMORY UPDATE
+    # -----------------------------
+    def update_memory(self, key, value):
         self.memory[key] = value
         self.save()
-        print(f" Learning Agent: Updated {key}")
 
     # -----------------------------
     # RECORD EXPERIENCE
@@ -50,9 +114,6 @@ class LearningAgent:
         })
         self.save()
 
-        print(f" Learning Agent: Recorded {result.upper()}")
-
-        # Reset retry if success
         if result == "success":
             self.reset_retry()
 
@@ -64,19 +125,14 @@ class LearningAgent:
 
     def increase_retry(self):
         self.retry_count += 1
-        print(f" Retry Attempt: {self.retry_count}")
 
     def reset_retry(self):
         self.retry_count = 0
-        print(" Learning Agent: Retry reset")
 
     # -----------------------------
-    # DECISION MAKING (INTELLIGENCE)
+    # INTELLIGENT SUGGESTION
     # -----------------------------
     def suggest_action(self):
-        """
-        Suggest best action based on past success
-        """
         if not self.history:
             return None
 
@@ -84,26 +140,4 @@ class LearningAgent:
             h["command"] for h in self.history if h["result"] == "success"
         ]
 
-        if not success_actions:
-            return None
-
-        # return most recent successful action
-        suggestion = success_actions[-1]
-
-        print(" Learning Agent Suggestion:", suggestion)
-
-        return suggestion
-
-    # -----------------------------
-    # PERFORMANCE SUMMARY
-    # -----------------------------
-    def summarize(self):
-        total = len(self.history)
-
-        if total == 0:
-            print(" No history yet")
-            return
-
-        success = sum(1 for h in self.history if h["result"] == "success")
-
-        print(f" Success Rate: {success}/{total}")
+        return success_actions[-1] if success_actions else None
