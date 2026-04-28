@@ -4,154 +4,61 @@ def normalize(text):
 
 class NavigationAgent:
 
-    def __init__(self, vision, ultrasonic=None, servo=None, mode="simulation"):
+    def __init__(self, vision, ultrasonic, servo, motor):
         self.vision = vision
-        self.ultrasonic = ultrasonic
+        self.motor = motor
         self.servo = servo
-        self.mode = mode
 
-    # ---------------------------------
-    # SEARCH OBJECT
-    # ---------------------------------
-    def search_object(self, target):
+    def approach_object(self, obj):
 
-        print(" Searching for object...")
+        print(" Approaching using wheels...")
 
-        # 🔥 Sweep camera (hardware)
-        if self.mode == "hardware" and self.servo:
-            for angle in range(60, 120, 10):
-                self.servo.move(1, angle)
+        for _ in range(10):
 
-        vision_out = self.vision.get_detections()
+            vision_out = self.vision.get_detections()
 
-        if vision_out["status"] == "no_object":
-            print(" No objects found")
-            return None
+            if vision_out["status"] == "no_object":
+                self.motor.stop()
+                return False
 
-        detections = vision_out["detections"]
+            target = None
+            for d in vision_out["detections"]:
+                if obj["label"] in d["label"]:
+                    target = d
+                    break
 
-        for obj in detections:
-            if target is None:
-                return obj
+            if not target:
+                self.motor.stop()
+                return False
 
-            if normalize(target) in normalize(obj["label"]):
-                print(f" Found: {obj['label']}")
-                return obj
+            cx, cy = target["center"]
+            offset_x = cx - 320
 
-        print(" Target not found during search")
-        return None
+            # 🔥 TURN USING WHEELS
+            if offset_x > 50:
+                self.motor.turn_right()
+            elif offset_x < -50:
+                self.motor.turn_left()
+            else:
+                self.motor.move_forward()
 
-    # ---------------------------------
-    # APPROACH OBJECT (SMART)
-    # ---------------------------------
-    def approach_object(self, target_obj):
+            # 🔥 STOP WHEN CLOSE
+            if abs(offset_x) < 20:
+                self.motor.stop()
+                print(" Reached near object")
+                return True
 
-        print(" Approaching object...")
+        self.motor.stop()
+        return True
+    
+    def move_back(self):
+        print("[HW] Moving backward")
 
-        vision_out = self.vision.get_detections()
+        if self.move == "simulation":
+            print("[SIM] Moving backward")
+            return
 
-        if vision_out["status"] == "no_object":
-            print(" Object lost during approach")
-            return {"status": "lost"}
-
-        detections = vision_out["detections"]
-
-        # 🔥 Find updated target
-        target = None
-        for obj in detections:
-            if normalize(obj["label"]) == normalize(target_obj["label"]):
-                target = obj
-                break
-
-        if not target:
-            print(" Target disappeared")
-            return {"status": "lost"}
-
-        target_x = target["center"][0]
-
-        # ---------------------------------
-        # 🔥 OBSTACLE DETECTION (VISION)
-        # ---------------------------------
-        for obj in detections:
-
-            if obj["label"] == target["label"]:
-                continue
-
-            obs_x = obj["center"][0]
-
-            # obstacle in same path
-            if abs(obs_x - target_x) < 60:
-                print(f" Obstacle blocking: {obj['label']}")
-
-                direction = "left" if obs_x > target_x else "right"
-
-                print(f" Avoiding → move {direction}")
-
-                return {"status": "avoid", "direction": direction}
-
-        # ---------------------------------
-        # 🔥 ULTRASONIC (REAL HARDWARE)
-        # ---------------------------------
-        if self.mode == "hardware" and self.ultrasonic:
-
-            distance = self.ultrasonic.get_distance()
-
-            if distance < 15:
-                print(" Obstacle too close")
-                return {"status": "blocked"}
-
-            while distance > 15:
-                print(f" Distance: {distance} cm → forward")
-
-                if self.servo:
-                    self.servo.move(1, 90)
-
-                distance = self.ultrasonic.get_distance()
-
-            print(" Reached object")
-            return {"status": "reached"}
-
-        # ---------------------------------
-        # 🔥 SIMULATION
-        # ---------------------------------
-        print(" Path clear → simulated approach")
-        return {"status": "reached"}
-
-    # ---------------------------------
-    # ALIGN OBJECT
-    # ---------------------------------
-    def align(self, obj):
-
-        print(" Aligning with object...")
-
-        center_x, center_y = obj["center"]
-
-        if self.mode == "hardware" and self.servo:
-
-            # Smooth alignment
-            if center_x < 300:
-                self.servo.move(1, 85)
-            elif center_x > 340:
-                self.servo.move(1, 95)
-
-            if center_y < 220:
-                self.servo.move(2, 60)
-            elif center_y > 260:
-                self.servo.move(2, 75)
-
-        else:
-            print(" Simulated alignment")
-
-    # ---------------------------------
-    # RETURN HOME
-    # ---------------------------------
-    def go_home(self):
-
-        print(" Returning to home position")
-
-        if self.mode == "hardware" and self.servo:
-            self.servo.move(1, 90)
-            self.servo.move(2, 40)
-            self.servo.move(3, 40)
-        else:
-            print(" Simulated home position")
+        # 🔥 Real hardware (L293D logic)
+        self.motor.backward()
+        time.sleep(1)
+        self.motor.stop()

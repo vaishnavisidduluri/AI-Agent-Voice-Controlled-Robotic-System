@@ -1,38 +1,69 @@
 import math
 
 class IKSolver:
+
     def __init__(self):
-        self.l1 = 10
-        self.l2 = 10
-        self.l3 = 10
+        # 🔥 Adjust based on your real arm (in cm)
+        self.L1 = 10   # base to shoulder
+        self.L2 = 10   # shoulder to elbow
+        self.L3 = 10   # elbow to wrist
 
     def solve(self, x, y, z):
+
         try:
-            theta1 = math.degrees(math.atan2(y, x))
+            # -----------------------------
+            # 1️⃣ BASE ROTATION
+            # -----------------------------
+            theta1 = math.degrees(math.atan2(x, y))
 
+            # -----------------------------
+            # 2️⃣ PLANAR DISTANCE
+            # -----------------------------
             r = math.sqrt(x**2 + y**2)
-            z_offset = z - self.l1
+            z = z - self.L1  # adjust base height
 
-            d = math.sqrt(r**2 + z_offset**2)
+            # distance to target
+            D = math.sqrt(r**2 + z**2)
 
-            if d > (self.l2 + self.l3):
+            if D > (self.L2 + self.L3):
                 print("⚠️ Target out of reach")
-                d = self.l2 + self.l3 - 1
+                return None
 
-            cos_theta3 = (d**2 - self.l2**2 - self.l3**2) / (2 * self.l2 * self.l3)
-            theta3 = math.degrees(math.acos(max(-1, min(1, cos_theta3))))
+            # -----------------------------
+            # 3️⃣ ELBOW (LAW OF COSINES)
+            # -----------------------------
+            cos_theta3 = (D**2 - self.L2**2 - self.L3**2) / (2 * self.L2 * self.L3)
+            theta3 = math.degrees(math.acos(cos_theta3))
 
-            cos_theta2 = (d**2 + self.l2**2 - self.l3**2) / (2 * self.l2 * d)
-            theta2 = math.degrees(math.acos(max(-1, min(1, cos_theta2))))
+            # -----------------------------
+            # 4️⃣ SHOULDER
+            # -----------------------------
+            alpha = math.atan2(z, r)
+            beta = math.acos((D**2 + self.L2**2 - self.L3**2) / (2 * D * self.L2))
 
-            theta2 = theta2 + math.degrees(math.atan2(z_offset, r))
+            theta2 = math.degrees(alpha + beta)
+
+            # -----------------------------
+            # 5️⃣ WRIST PITCH
+            # -----------------------------
+            theta4 = 180 - (theta2 + theta3)
+
+            # -----------------------------
+            # 6️⃣ WRIST ROTATE
+            # -----------------------------
+            if x > 0:
+                theta5 = 110
+            else:
+                theta5 = 70
 
             return {
-                "servo1": int(theta1),
+                "servo1": int(90 + theta1),
                 "servo2": int(theta2),
-                "servo3": int(theta3)
+                "servo3": int(theta3),
+                "servo4": int(theta4),
+                "servo5": int(theta5)
             }
 
         except Exception as e:
-            print("❌ IK Error:", e)
+            print(" IK Error:", e)
             return None

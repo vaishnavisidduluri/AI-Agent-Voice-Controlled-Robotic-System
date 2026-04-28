@@ -11,7 +11,9 @@ from planner.ik_solver import IKSolver
 
 from perception.depth_estimator import DepthEstimator
 
-from simulation.mock_servo import MockServo as ServoController
+
+from hardware.servo_controller import ServoController
+from hardware.motor_driver import MotorDriver
 
 
 class MasterAgent:
@@ -22,16 +24,17 @@ class MasterAgent:
         self.context = LearningAgent()
         self.safety = MotorControlAgent()
         self.planner = TaskPlanner()
-        self.servo = ServoController()
         self.ik = IKSolver()
         self.depth = DepthEstimator()
-
+        self.motor = MotorDriver()
+        self.servo = ServoController()
         self.navigation = NavigationAgent(
             vision=self.vision,
             ultrasonic=None,
             servo=self.servo,
-            mode="simulation"  # change to "hardware"
+            motor=self.motor
         )
+        
 
     def run(self):
         print(" AI Robotic Arm System Initialized...\n")
@@ -39,6 +42,26 @@ class MasterAgent:
         while True:
             self.process_cycle()
             time.sleep(1)
+
+    def search_object(self, target_label):
+
+        print(" Searching using camera...")
+
+        for angle in [60, 90, 120, 150, 30]:
+
+            self.servo.move_camera(angle)
+            time.sleep(1)
+
+            vision_out = self.vision.get_detections()
+
+            if vision_out["status"] != "no_object":
+                for d in vision_out["detections"]:
+                    if target_label in d["label"]:
+                        print(f" Found {target_label}!")
+                        return d
+
+        print(" Object not found after search")
+        return None
 
     def estimate_depth(self, obj):
 
@@ -79,7 +102,7 @@ class MasterAgent:
     def verify_grasp(self, obj):
 
         vision_out = self.vision.get_detections()
-
+        #  vision_out = self.vision if grasp verification fail then replace the full function with this one line only
         if vision_out["status"] == "no_object":
             print(" Object disappeared → assuming grasp success")
             return True
@@ -136,7 +159,7 @@ class MasterAgent:
             return
 
         if speech_out["status"] != "ok":
-            print("❌ Speech Agent → Error")
+            print(" Speech Agent → Error")
             return
 
         command = speech_out["command"]
@@ -156,7 +179,7 @@ class MasterAgent:
         if command["action"] == "drop":
 
             if not self.context.holding:
-                print("❌ Nothing to drop")
+                print(" Nothing to drop")
                 return
 
             print(" Drop command → executing directly")
@@ -227,8 +250,27 @@ class MasterAgent:
             obj = self.vision.track_object(detections, target_label)
 
             if obj is None:
-                print(f" Object '{command['object']}' not found")
-                return
+
+                print(" Searching using camera...")
+
+                for angle in [60, 90, 120]:
+                    self.servo.move_camera(angle)
+                    time.sleep(0.5)
+
+                    vision_out = self.vision.get_detections()
+
+                    if vision_out["status"] != "no_object":
+                        obj = self.vision.track_object(
+                            vision_out["detections"],
+                            command["object"]
+                        )
+                        if obj:
+                            print(" Object found after camera scan")
+                            break
+
+                if obj is None:
+                    print(" Object not found after scan")
+                    return
 
             print(f" Tracked Object: {obj['label']}")
 
@@ -275,12 +317,31 @@ class MasterAgent:
 
         if result is False:
             print(" Movement blocked")
-            return
+
+               # 🔥 Step 1: move back
+            self.navigation.move_back()
+            time.sleep(1)
+
+            # 🔥 Step 2: try alternate direction
+            print(" Trying alternate path...")
+            self.servo.move(1, 60)  # left
+            time.sleep(1)
+
+            # 🔥 Step 3: re-detect
+            vision_out = self.vision.get_detections()
+
+            if vision_out["status"] == "no_object":
+                print(" Object lost → starting search")
+                self.search_object(command["object"])
+                return
+
+            print(" Retrying approach...")
+            self.navigation.approach_object(obj)
 
         if isinstance(result, dict) and result.get("status") == "avoid":
             direction = result["direction"]
             print(f" Avoiding obstacle → {direction}")
-            self.servo.move(1, 60 if direction == "left" else 120)
+            self.servo.move(0, 60 if direction == "left" else 120)
             time.sleep(1)
 
         # -----------------------------
@@ -292,8 +353,10 @@ class MasterAgent:
 
         for _ in range(5):
 
-            vision_out = self.vision.get_detections()
+            
 
+            vision_out = self.vision.get_detections()
+            
             if vision_out["status"] == "no_object":
                 print(" Lost object")
                 return
@@ -330,7 +393,7 @@ class MasterAgent:
         x = (grasp_x - 320) * 0.1
         y = (grasp_y - 240) * 0.1
         raw_depth = self.estimate_depth(obj)
-        z = raw_depth - 2
+        z = raw_depth / 25
 
         # 🔥 Clamp to robot workspace
         x = max(-15, min(15, x))
@@ -346,28 +409,32 @@ class MasterAgent:
         # -----------------------------
         print("\n IK → Computing joint angles...")
 
-        angles = self.ik.solve(*target_position)
+        angles = self.ik.solve(x, y, z)
 
         if not angles:
             print(" IK failed → trying fallback position")
 
             angles = {
                 "servo1": 90,
-                "servo2": 60,
-                "servo3": 50
+                "servo2": 90,
+                "servo3": 90,
+                "servo4": 90,
+                "servo5": 90
             }
 
         steps = [
             {"gripper": "open", "delay": 0.5},
-            {"servo_id": 1, "angle": angles["servo1"], "delay": 0.5},
-            {"servo_id": 2, "angle": angles["servo2"], "delay": 0.5},
-            {"servo_id": 3, "angle": angles["servo3"], "delay": 0.5},
 
-            # 🔥 NEW: descend slightly
-            {"servo_id": 3, "angle": angles["servo3"] + 10, "delay": 0.5},
+            {"servo_id": 1, "angle": angles["servo1"], "delay": 0.5},  # base
+            {"servo_id": 2, "angle": angles["servo2"], "delay": 0.5},  # shoulder
+            {"servo_id": 3, "angle": angles["servo3"], "delay": 0.5},  # elbow
 
-            {"gripper": "close", "delay": 0.5},
-            {"servo_id": 3, "angle": max(0, min(180, angles["servo3"] - 20)), "delay": 0.5}
+            {"servo_id": 4, "angle": angles["servo4"], "delay": 0.5},  # wrist pitch
+            {"servo_id": 5, "angle": angles["servo5"], "delay": 0.5},  # wrist rotate
+
+            {"gripper": "grasp", "delay": 0.5},
+
+            {"servo_id": 2, "angle": angles["servo2"] - 10, "delay": 0.5}  # lift
         ]
 
         print(" Generated IK Steps:", steps)
@@ -406,12 +473,9 @@ class MasterAgent:
             if "servo_id" in step:
                 self.servo.move(step["servo_id"], step["angle"])
 
-            elif "gripper" in step:
-                self.servo.control_gripper(step["gripper"])
+            elif "gripper_action" in step:
 
-                if step["gripper"] == "close":
-                    print(" Attempting grasp...")
-
+                if step["gripper_action"] == "grasp":
                     success = self.retry_grasp(obj)
 
                     if success:
@@ -420,10 +484,6 @@ class MasterAgent:
                     else:
                         print(" Grasp ultimately failed")
                         return
-
-                elif step["gripper"] == "open":
-                    self.context.holding = False
-                    self.context.state = "idle"
 
             elif "move" in step:
                 print(f"[SIM] Moving {step['move']}")
@@ -438,7 +498,7 @@ class MasterAgent:
             self.navigation.go_home()
 
             print(" Dropping object...")
-            self.servo.control_gripper("open")
+            self.servo.move(5, angle)
 
             self.context.holding = False
             self.context.state = "idle"

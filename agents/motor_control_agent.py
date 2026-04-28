@@ -7,24 +7,21 @@ class MotorControlAgent:
             self.limits = yaml.safe_load(f)
 
     def validate(self, steps):
+
         for step in steps:
+
             if "servo_id" in step:
-                sid = str(step["servo_id"])
+
+                sid = step["servo_id"]
                 angle = step["angle"]
 
-                if sid not in self.limits:
+                if sid not in [1, 2, 3, 4, 5, 6]:
                     return {"safe": False, "reason": f"Servo {sid} not defined"}
 
-                min_angle = self.limits[sid]["min"]
-                max_angle = self.limits[sid]["max"]
+                if not (0 <= angle <= 180):
+                    return {"safe": False, "reason": f"Servo {sid} out of range"}
 
-                if not (min_angle <= angle <= max_angle):
-                    return {
-                        "safe": False,
-                        "reason": f"Servo {sid} out of range"
-                    }
-
-        return {"safe": True, "reason": None}
+        return {"safe": True}
     
 
 class MobileBase:

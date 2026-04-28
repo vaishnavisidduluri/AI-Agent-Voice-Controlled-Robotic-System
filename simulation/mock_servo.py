@@ -5,3 +5,6 @@ class MockServo:
 
     def control_gripper(self, action):
         print(f"[SIM] Gripper → {action}")
+
+    def move_camera(self, angle):
+        print(f"[SIM] Moving Camera Servo → {angle}°")
