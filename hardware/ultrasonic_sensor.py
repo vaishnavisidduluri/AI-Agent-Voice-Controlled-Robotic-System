@@ -2,7 +2,7 @@ import time
 import RPi.GPIO as GPIO
 
 class UltrasonicSensor:
-    def __init__(self, trig=23, echo=24):
+    def __init__(self, trig=17, echo=24):
         self.trig = trig
         self.echo = echo
 
@@ -15,11 +15,22 @@ class UltrasonicSensor:
         time.sleep(0.00001)
         GPIO.output(self.trig, False)
 
+        timeout = time.time()
+
         while GPIO.input(self.echo) == 0:
             start = time.time()
+            if start - timeout > 0.02:
+                return None
+
+        timeout = time.time()
 
         while GPIO.input(self.echo) == 1:
             end = time.time()
+            if end - timeout > 0.02:
+                return None
 
         distance = (end - start) * 17150
         return round(distance, 2)
+    
+    def cleanup(self):
+        GPIO.cleanup()

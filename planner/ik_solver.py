@@ -4,8 +4,8 @@ class IKSolver:
 
     def __init__(self):
         # 🔥 Adjust based on your real arm (in cm)
-        self.L1 = 10   # base to shoulder
-        self.L2 = 10   # shoulder to elbow
+        self.L1 = 6   # base to shoulder
+        self.L2 = 13.5  # shoulder to elbow
         self.L3 = 10   # elbow to wrist
 
     def solve(self, x, y, z):

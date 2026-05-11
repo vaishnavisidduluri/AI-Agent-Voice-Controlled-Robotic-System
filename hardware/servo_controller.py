@@ -18,10 +18,10 @@ class ServoController:
             1: 0,  # Base
             2: 1,  # Shoulder
             3: 2,  # Elbow
-            4: 3,  # Wrist Pitch
-            5: 4,  # Wrist Rotate
+            4: 4,  # Wrist Pitch
+            5: 3,  # Wrist Rotate
             6: 5,  # Gripper
-            7: 6   # Camera Servo
+            7: 9   # Camera Servo
         }
 
         # 🔥 Calibration offsets (tune later)
