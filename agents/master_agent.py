@@ -23,23 +23,17 @@ except Exception as e:
     HARDWARE_MODE = False
 
     print("[SYSTEM] Simulation mode enabled")
-try:
+if HARDWARE_MODE:
+
     from hardware.motor_driver import MotorDriver
+
     print("[SYSTEM] Real MotorDriver loaded")
 
-except Exception as e:
-    print(f"[SIMULATION] Hardware MotorDriver unavailable: {e}")
+else:
 
-    class MotorDriver:
-        def __init__(self):
-            print("[SIMULATION] Mock MotorDriver initialized")
+    from simulation.mock_motor import MockMotorDriver as MotorDriver
 
-        def move(self, servo_id, angle):
-            print(f"[SIMULATION] Servo {servo_id} -> {angle}°")
-
-        def stop_all(self):
-            print("[SIMULATION] All motors stopped")
-
+    print("[SYSTEM] Simulation MotorDriver loaded")
 
 class MasterAgent:
 
@@ -413,8 +407,6 @@ class MasterAgent:
             {"servo_id": 3, "angle": angles["servo3"]},
             {"servo_id": 4, "angle": angles["servo4"]},
             {"servo_id": 5, "angle": angles["servo5"]},
-            {"servo_id": 6, "angle": angles["servo6"]},
-            {"servo_id": 7, "angle": angles["servo7"]},
 
             {"gripper_action": "grasp"}
         ]
@@ -497,7 +489,7 @@ class MasterAgent:
         # =====================================================
         # FINAL
         # =====================================================
-        logs.append("🎉 Task completed successfully")
+        logs.append(" Task completed successfully")
 
         self.context.update_after_action(
             command["action"],

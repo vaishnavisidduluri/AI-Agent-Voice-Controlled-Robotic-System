@@ -201,9 +201,9 @@
   ],
   "memory": {
     "last_command": {
-      "action": "move",
-      "object": null,
-      "destination": "left",
+      "action": "pick",
+      "object": "bottle",
+      "destination": null,
       "confidence": 0.95
     },
     "last_object": "cell phone",

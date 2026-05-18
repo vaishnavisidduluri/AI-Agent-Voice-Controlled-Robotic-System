@@ -26,6 +26,9 @@ def create_message(
         "data": data,
         "status": status
     }
-
+def print_message(message):
+  
+    print(message)
+   
 # Example usage:
 # msg = create_message("speech_agent", "intent", {"action": "pick", "object": "bottle"})
