@@ -11,14 +11,40 @@ from planner.ik_solver import IKSolver
 
 from perception.depth_estimator import DepthEstimator
 
+try:
+    from hardware.servo_controller import ServoController
+    HARDWARE_MODE = True
+    print("[SYSTEM] Hardware mode enabled")
 
-from hardware.servo_controller import ServoController
-from hardware.motor_driver import MotorDriver
+except Exception as e:
+    print(f"[WARNING] Hardware not available: {e}")
+
+    from simulation.mock_servo import MockServoController as ServoController
+    HARDWARE_MODE = False
+
+    print("[SYSTEM] Simulation mode enabled")
+try:
+    from hardware.motor_driver import MotorDriver
+    print("[SYSTEM] Real MotorDriver loaded")
+
+except Exception as e:
+    print(f"[SIMULATION] Hardware MotorDriver unavailable: {e}")
+
+    class MotorDriver:
+        def __init__(self):
+            print("[SIMULATION] Mock MotorDriver initialized")
+
+        def move(self, servo_id, angle):
+            print(f"[SIMULATION] Servo {servo_id} -> {angle}°")
+
+        def stop_all(self):
+            print("[SIMULATION] All motors stopped")
 
 
 class MasterAgent:
 
     def __init__(self):
+
         self.speech = SpeechAgent()
         self.vision = VisionAgent()
         self.context = LearningAgent()
@@ -26,484 +52,488 @@ class MasterAgent:
         self.planner = TaskPlanner()
         self.ik = IKSolver()
         self.depth = DepthEstimator()
+
         self.motor = MotorDriver()
         self.servo = ServoController()
+
         self.navigation = NavigationAgent(
             vision=self.vision,
             ultrasonic=None,
             servo=self.servo,
             motor=self.motor
         )
-        
 
+    # =========================================================
+    # RUN LOOP
+    # =========================================================
     def run(self):
-        print(" AI Robotic Arm System Initialized...\n")
+
+        print("🤖 AI Robotic Arm System Initialized...\n")
 
         while True:
+
             self.process_cycle()
+
             time.sleep(1)
 
+    # =========================================================
+    # SEARCH OBJECT
+    # =========================================================
     def search_object(self, target_label):
 
-        print(" Searching using camera...")
+        print("🔍 Searching using camera...")
 
         for angle in [60, 90, 120, 150, 30]:
 
             self.servo.move_camera(angle)
+
             time.sleep(1)
 
             vision_out = self.vision.get_detections()
 
             if vision_out["status"] != "no_object":
+
                 for d in vision_out["detections"]:
+
                     if target_label in d["label"]:
-                        print(f" Found {target_label}!")
+
+                        print(f"✅ Found {target_label}")
+
                         return d
 
-        print(" Object not found after search")
+        print("❌ Object not found after search")
+
         return None
 
+    # =========================================================
+    # DEPTH ESTIMATION
+    # =========================================================
     def estimate_depth(self, obj):
 
         frame = self.vision.get_frame()
 
         if frame is None:
-            return 30  # fallback
+            return 20
 
         bbox = obj.get("bbox")
 
         if not bbox:
-            return 30
+            return 20
 
         depth = self.depth.estimate(frame, bbox)
 
-        print(f" Estimated Depth: {depth}")
+        print(f"📏 Estimated Depth: {depth}")
 
         return depth
 
-    def check_grasp_success(self):
-    # 🔥 SIMPLE LOGIC (can improve later)
-
-        if not self.context.holding:
-            return False
-
-        # Optional: verify object still visible
-        vision_out = self.vision.get_detections()
-
-        if vision_out["status"] == "no_object":
-            return True  # object likely picked
-
-        for d in vision_out["detections"]:
-            if d["label"] == self.context.memory.get("last_object"):
-                return False  # still visible → not picked
-
-        return True
-
+    # =========================================================
+    # VERIFY GRASP
+    # =========================================================
     def verify_grasp(self, obj):
 
         vision_out = self.vision.get_detections()
-        #  vision_out = self.vision if grasp verification fail then replace the full function with this one line only
+
         if vision_out["status"] == "no_object":
-            print(" Object disappeared → assuming grasp success")
+
+            print("✅ Object disappeared → grasp success")
+
             return True
 
         labels = [d["label"] for d in vision_out["detections"]]
 
         if obj["label"] in labels:
-            print(" Object still visible → grasp failed")
+
+            print("❌ Object still visible → grasp failed")
+
             return False
-        else:
-            print(" Object not visible → grasp success")
-            return True
+
+        print("✅ Object grasped")
+
+        return True
+
+    # =========================================================
+    # RETRY GRASP
+    # =========================================================
     def retry_grasp(self, obj):
 
-        print(" Attempting grasp...")
+        print("🤏 Attempting grasp...")
 
         self.servo.control_gripper("close")
+
         time.sleep(1)
 
         if self.verify_grasp(obj):
-            print(" Grasp successful")
+
             return True
 
-        print(" Grasp failed → retrying...")
+        print("⚠️ Retry grasping...")
 
         for attempt in range(2):
 
-            print(f" Retry attempt {attempt + 1}...")
+            print(f"🔁 Retry Attempt {attempt + 1}")
 
-            # 🔥 small reposition
             self.servo.move(2, 60 + attempt * 5)
+
             time.sleep(0.5)
 
             self.servo.control_gripper("open")
+
             time.sleep(0.5)
 
             self.servo.control_gripper("close")
+
             time.sleep(1)
 
             if self.verify_grasp(obj):
-                print(" Grasp successful on retry!")
+
+                print("✅ Grasp successful")
+
                 return True
 
-        print(" Failed to grasp object after retries")
-        return False    
-    
-    def process_cycle(self):
+        print("❌ Failed to grasp object")
 
-        # 1️⃣ SPEECH INPUT
-        print("\n Speech Agent → Listening...")
-        speech_out = self.speech.get_command()
+        return False
 
-        if speech_out["status"] == "no_input":
-            return
+    # =========================================================
+    # MAIN PROCESS CYCLE
+    # =========================================================
+    def process_cycle(self, input_command=None):
 
-        if speech_out["status"] != "ok":
-            print(" Speech Agent → Error")
-            return
+        logs = []
 
-        command = speech_out["command"]
+        # =====================================================
+        # INPUT
+        # =====================================================
+        if input_command is None:
 
-        print(" Wake Word Detected: robot")
-        print(f' Command: {command["action"]}')
-        print(f' Confidence: {command["confidence"]}')
+            print("\n🎤 Speech Agent → Listening...")
+
+            speech_out = self.speech.get_command()
+
+            if speech_out["status"] == "no_input":
+
+                return {
+                    "status": "failed",
+                    "logs": ["❌ No voice input"]
+                }
+
+            if speech_out["status"] != "ok":
+
+                return {
+                    "status": "failed",
+                    "logs": ["❌ Speech error"]
+                }
+
+            command = speech_out["command"]
+
+        else:
+
+            parts = input_command.lower().split()
+
+            action = parts[0] if len(parts) > 0 else "pick"
+
+            obj = parts[-1] if len(parts) > 1 else None
+
+            command = {
+                "action": action,
+                "object": obj,
+                "confidence": 1.0
+            }
+
+        logs.append(f"🎯 Action: {command['action']}")
 
         if command.get("object"):
-            print(f' Object: {command["object"]}')
 
-        self.context.update_memory("last_command", command)
+            logs.append(f"📦 Object: {command['object']}")
 
-        # -----------------------------
-        # 🔥 DROP SAFETY
-        # -----------------------------
+        self.context.update_memory(
+            "last_command",
+            command
+        )
+
+        # =====================================================
+        # DROP
+        # =====================================================
         if command["action"] == "drop":
 
-            if not self.context.holding:
-                print(" Nothing to drop")
-                return
-
-            print(" Drop command → executing directly")
+            logs.append("🖐️ Opening gripper")
 
             self.servo.control_gripper("open")
 
             self.context.holding = False
+
             self.context.state = "idle"
 
-            self.context.update_after_action("drop", success=True)
+            logs.append("✅ Object dropped")
 
-            print(" Task Completed Successfully")
-            return
+            return {
+                "status": "completed",
+                "logs": logs,
+                "state": self.context.state
+            }
 
-        # -----------------------------
-        # ✅ MOVE (NO VISION NEEDED)
-        # -----------------------------
+        # =====================================================
+        # MOVE
+        # =====================================================
         if command["action"] == "move":
-            print(f" Moving {command.get('destination')}")
 
-            plan = self.planner.plan_task(command, [], self.context)
+            logs.append("🚗 Moving robot")
 
-            if plan["status"] != "ok":
-                print(plan["message"])
-                return
+            time.sleep(2)
 
-            for step in plan["steps"]:
-                if "move" in step:
-                    print(f"[SIM] Moving {step['move']}")
-                    time.sleep(step.get("delay", 1))
+            logs.append("✅ Movement completed")
 
-            print("\n Task Completed Successfully")
-            return
+            return {
+                "status": "completed",
+                "logs": logs,
+                "state": self.context.state
+            }
 
-        # -----------------------------
-        # 2️⃣ VISION
-        # -----------------------------
-        print("\n Vision Agent → Scanning environment...")
+        # =====================================================
+        # VISION
+        # =====================================================
+        logs.append("👁️ Vision scanning started")
+
         vision_out = self.vision.get_detections()
 
         if vision_out["status"] == "no_object":
-            print(" Lost object → using last known position")
 
-            if self.vision.last_object:
-                obj = self.vision.last_object
-            else:
-                return
-        else:
-            detections = vision_out["detections"]
-            obj = self.vision.track_object(detections, command["object"])
+            logs.append("❌ No object detected")
+
+            return {
+                "status": "failed",
+                "logs": logs
+            }
 
         detections = vision_out["detections"]
 
-        print("\n Detected Objects:")
-        for d in detections:
-            print(f" - {d['label']} (conf: {d['confidence']})")
+        target_object = command.get("object")
 
-        # -----------------------------
-        # 🔥 OBJECT MATCHING
-        # -----------------------------
-        def normalize(text):
-            return text.lower().replace(" ", "").strip()
+        obj = self.vision.track_object(
+            detections,
+            target_object
+        )
 
-        if command.get("object"):
+        if obj is None:
 
-            target_label = command["object"]
+            logs.append("🔍 Searching target object")
 
-            obj = self.vision.track_object(detections, target_label)
+            obj = self.search_object(target_object)
 
-            if obj is None:
+        if obj is None:
 
-                print(" Searching using camera...")
+            logs.append("❌ Target object not found")
 
-                for angle in [60, 90, 120]:
-                    self.servo.move_camera(angle)
-                    time.sleep(0.5)
+            return {
+                "status": "failed",
+                "logs": logs
+            }
 
-                    vision_out = self.vision.get_detections()
+        logs.append(f"✅ Detected: {obj['label']}")
 
-                    if vision_out["status"] != "no_object":
-                        obj = self.vision.track_object(
-                            vision_out["detections"],
-                            command["object"]
-                        )
-                        if obj:
-                            print(" Object found after camera scan")
-                            break
-
-                if obj is None:
-                    print(" Object not found after scan")
-                    return
-
-            print(f" Tracked Object: {obj['label']}")
-
-            
-
-
-        else:
-            obj = detections[0]
-
-        print(f"\n Target Object: {obj['label']}")
-        print(f" Center: {obj['center']}")
-
-        self.context.update_memory("last_object", obj["label"])
-
-        # -----------------------------
-        # 3️⃣ INITIAL OFFSET (ROUGH)
-        # -----------------------------
         cx, cy = obj["center"]
 
-        # 🔥 Extract bounding box
-        x1, y1, x2, y2 = obj["bbox"]
+        logs.append(f"📍 Center: {obj['center']}")
 
-        # 🔥 Smart grasp point (slightly above center)
-        grasp_x = int((x1 + x2) / 2)
-        grasp_y = int(y1 + (y2 - y1) * 0.3)  # 30% from top
+        # =====================================================
+        # NAVIGATION
+        # =====================================================
+        logs.append("🚗 Navigation started")
 
-        print(f" Smart Grasp Point: ({grasp_x}, {grasp_y})")
+        nav_result = self.navigation.approach_object(obj)
 
-        offset_x = cx - 320
-        offset_y = cy - 240
+        if nav_result is False:
 
-        adjust_y = int(offset_y * 0.05)
+            logs.append("❌ Path blocked")
 
-        print(f" X Offset: {offset_x}")
-        print(f" Y Offset: {offset_y}")
+            return {
+                "status": "failed",
+                "logs": logs
+            }
 
-        # -----------------------------
-        # 4️⃣ NAVIGATION
-        # -----------------------------
-        print("\n Navigation → Starting...")
+        logs.append("✅ Object reached")
 
-        print(" Navigation → Approaching...")
-        result = self.navigation.approach_object(obj)
+        # =====================================================
+        # DEPTH
+        # =====================================================
+        logs.append("📏 Estimating depth")
 
-        if result is False:
-            print(" Movement blocked")
+        z = self.estimate_depth(obj)
 
-               # 🔥 Step 1: move back
-            self.navigation.move_back()
-            time.sleep(1)
+        x = (cx - 320) * 0.1
+        y = (cy - 240) * 0.1
 
-            # 🔥 Step 2: try alternate direction
-            print(" Trying alternate path...")
-            self.servo.move(1, 60)  # left
-            time.sleep(1)
+        logs.append(f"📌 3D Position: {(x, y, z)}")
 
-            # 🔥 Step 3: re-detect
-            vision_out = self.vision.get_detections()
-
-            if vision_out["status"] == "no_object":
-                print(" Object lost → starting search")
-                self.search_object(command["object"])
-                return
-
-            print(" Retrying approach...")
-            self.navigation.approach_object(obj)
-
-        if isinstance(result, dict) and result.get("status") == "avoid":
-            direction = result["direction"]
-            print(f" Avoiding obstacle → {direction}")
-            self.servo.move(0, 60 if direction == "left" else 120)
-            time.sleep(1)
-
-        # -----------------------------
-        # 🔥 ALIGN WITH FEEDBACK
-        # -----------------------------
-        print(" Navigation → Aligning with feedback...")
-
-        final_adjust_x = 0
-
-        for _ in range(5):
-
-            
-
-            vision_out = self.vision.get_detections()
-            
-            if vision_out["status"] == "no_object":
-                print(" Lost object")
-                return
-
-            # 🔥 KEEP TARGET LOCKED
-            for d in vision_out["detections"]:
-                if obj["label"] in d["label"]:
-                    obj = d
-                    break
-
-            center_x, center_y = obj["center"]
-
-            offset_x = center_x - 320
-            offset_y = center_y - 240
-
-            if abs(offset_x) < 20 and abs(offset_y) < 20:
-                print(" Object aligned")
-                break
-
-            current_angle = 90
-
-            adjust_x = int(offset_x * 0.05)
-            current_angle += adjust_x
-
-            self.servo.move(1, current_angle)
-            time.sleep(0.3)
-
-        # -----------------------------
-        # 🔥 UPDATE TARGET AFTER ALIGN
-        # -----------------------------
-        cx, cy = obj["center"]
-
-        # 🔥 Convert 2D → 3D (scaled + clamped)
-        x = (grasp_x - 320) * 0.1
-        y = (grasp_y - 240) * 0.1
-        raw_depth = self.estimate_depth(obj)
-        z = raw_depth / 25
-
-        # 🔥 Clamp to robot workspace
-        x = max(-15, min(15, x))
-        y = max(5, min(20, y))
-        z = max(5, min(25, z))
-
-        target_position = (x, y, z)
-
-        print(f" Target 3D Position: {target_position}")
-        
-        # -----------------------------
-        # 5️⃣ IK SOLVER
-        # -----------------------------
-        print("\n IK → Computing joint angles...")
+        # =====================================================
+        # IK
+        # =====================================================
+        logs.append("🧠 Solving IK")
 
         angles = self.ik.solve(x, y, z)
 
         if not angles:
-            print(" IK failed → trying fallback position")
+
+            logs.append("⚠️ IK failed → fallback")
 
             angles = {
                 "servo1": 90,
                 "servo2": 90,
                 "servo3": 90,
                 "servo4": 90,
-                "servo5": 90
+                "servo5": 90,
+                "servo6": 90,
+                "servo7": 90
+            }
+            print("IK OUTPUT:", angles)
+            default_angles = {
+                "servo1": 90,
+                "servo2": 90,
+                "servo3": 90,
+                "servo4": 90,
+                "servo5": 90,
+                "servo6": 90,
+                "servo7": 90
             }
 
+            for key, value in default_angles.items():
+
+                if key not in angles:
+                    angles[key] = value
+
+        # =====================================================
+        # STEPS
+        # =====================================================
         steps = [
-            {"gripper": "open", "delay": 0.5},
 
-            {"servo_id": 1, "angle": angles["servo1"], "delay": 0.5},  # base
-            {"servo_id": 2, "angle": angles["servo2"], "delay": 0.5},  # shoulder
-            {"servo_id": 3, "angle": angles["servo3"], "delay": 0.5},  # elbow
+            {"gripper": "open"},
 
-            {"servo_id": 4, "angle": angles["servo4"], "delay": 0.5},  # wrist pitch
-            {"servo_id": 5, "angle": angles["servo5"], "delay": 0.5},  # wrist rotate
+            {"servo_id": 1, "angle": angles["servo1"]},
+            {"servo_id": 2, "angle": angles["servo2"]},
+            {"servo_id": 3, "angle": angles["servo3"]},
+            {"servo_id": 4, "angle": angles["servo4"]},
+            {"servo_id": 5, "angle": angles["servo5"]},
+            {"servo_id": 6, "angle": angles["servo6"]},
+            {"servo_id": 7, "angle": angles["servo7"]},
 
-            {"gripper": "grasp", "delay": 0.5},
-
-            {"servo_id": 2, "angle": angles["servo2"] - 10, "delay": 0.5}  # lift
+            {"gripper_action": "grasp"}
         ]
 
-        print(" Generated IK Steps:", steps)
+        # =====================================================
+        # SAFETY
+        # =====================================================
+        logs.append("🛡️ Safety validation")
 
-        # -----------------------------
-        # 🔥 APPLY ALIGNMENT
-        # -----------------------------
-        for step in steps:
-            if step.get("servo_id") == 1:
-                step["angle"] = max(0, min(180, step["angle"] + adjust_x))
-
-            if step.get("servo_id") in [2, 3]:
-                step["angle"] = max(0, min(180, step["angle"] - adjust_y))
-
-        # -----------------------------
-        # 🔒 SAFETY
-        # -----------------------------
-        print("\n Safety Agent → Validating plan...")
         safety = self.safety.validate(steps)
 
         if not safety["safe"]:
-            print(f" Unsafe: {safety['reason']}")
-            return
 
-        print(" Plan Approved")
+            logs.append(f"❌ Unsafe: {safety['reason']}")
 
-        # -----------------------------
-        # 6️⃣ EXECUTION
-        # -----------------------------
-        print("\n Execution Agent → Executing...")
+            return {
+                "status": "failed",
+                "logs": logs
+            }
 
-        for i, step in enumerate(steps, 1):
+        logs.append("✅ Plan approved")
 
-            print(f"\n Step {i}:")
+        # =====================================================
+        # EXECUTION
+        # =====================================================
+        execution_logs = []
+
+        logs.append("⚙️ Executing motion")
+
+        for step in steps:
 
             if "servo_id" in step:
-                self.servo.move(step["servo_id"], step["angle"])
+
+                servo_id = step["servo_id"]
+
+                angle = step["angle"]
+
+                self.servo.move(servo_id, angle)
+
+                execution_logs.append(
+                    f"🔧 Servo {servo_id} → {angle}°"
+                )
+
+            elif "gripper" in step:
+
+                self.servo.control_gripper(step["gripper"])
+
+                execution_logs.append(
+                    f"🖐️ Gripper → {step['gripper']}"
+                )
 
             elif "gripper_action" in step:
 
-                if step["gripper_action"] == "grasp":
-                    success = self.retry_grasp(obj)
+                success = self.retry_grasp(obj)
 
-                    if success:
-                        self.context.holding = True
-                        self.context.state = "holding"
-                    else:
-                        print(" Grasp ultimately failed")
-                        return
+                if success:
 
-            elif "move" in step:
-                print(f"[SIM] Moving {step['move']}")
+                    execution_logs.append(
+                        "✅ Object grasped"
+                    )
 
-            time.sleep(step.get("delay", 0.5))
+                    self.context.holding = True
 
-        # -----------------------------
-        # 🔥 BRING FINAL STEP
-        # -----------------------------
-        if command["action"] == "bring":
-            print("\n Returning Home...")
-            self.navigation.go_home()
+                    self.context.state = "holding"
 
-            print(" Dropping object...")
-            self.servo.move(5, angle)
+                else:
 
-            self.context.holding = False
-            self.context.state = "idle"
+                    execution_logs.append(
+                        "❌ Grasp failed"
+                    )
 
-        self.context.update_after_action(command["action"], success=True)
-        self.vision.last_object = None
-        print(f"\n STATE → {self.context.state}, HOLDING → {self.context.holding}")
-        print("\n Task Completed Successfully")
+                    return {
+                        "status": "failed",
+                        "logs": logs,
+                        "execution": execution_logs
+                    }
+
+            time.sleep(0.5)
+
+        # =====================================================
+        # FINAL
+        # =====================================================
+        logs.append("🎉 Task completed successfully")
+
+        self.context.update_after_action(
+            command["action"],
+            success=True
+        )
+
+        # =====================================================
+        # RETURN DASHBOARD DATA
+        # =====================================================
+        return {
+
+            "status": "completed",
+
+            "command": command,
+
+            "vision": {
+                "object": obj["label"],
+                "center": obj["center"],
+                "confidence": obj["confidence"]
+            },
+
+            "navigation": {
+                "status": "completed"
+            },
+
+            "planner": {
+                "steps": steps
+            },
+
+            "execution": {
+                "steps": execution_logs
+            },
+
+            "logs": logs,
+
+            "state": self.context.state,
+
+            "holding": self.context.holding
+        }

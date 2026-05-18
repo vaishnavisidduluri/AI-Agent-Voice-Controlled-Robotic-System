@@ -61,7 +61,11 @@ class IKSolver:
                 "servo2": int(theta2),
                 "servo3": int(theta3),
                 "servo4": int(theta4),
-                "servo5": int(theta5)
+                "servo5": int(theta5),
+
+                # Default wrist/gripper servos
+                "servo6": 90,
+                "servo7": 90
             }
 
         except Exception as e:
