@@ -10,8 +10,7 @@ except ImportError:
     TFLITE_AVAILABLE = False
 
 class detect_objects:
-    def __init__(self, model_path="best.tflite"):
-
+    def __init__(self, model_path="yolov8n_saved_model/yolov8n_float16.tflite"):
         # Load TFLite model
         if TFLITE_AVAILABLE:
 

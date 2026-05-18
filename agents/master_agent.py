@@ -66,8 +66,11 @@ class MasterAgent:
 
         while True:
 
-            self.process_cycle()
+            result = self.process_cycle()
 
+            print("\n========== RESULT ==========")
+            print(result)
+            print("============================\n")
             time.sleep(1)
 
     # =========================================================
@@ -208,32 +211,61 @@ class MasterAgent:
 
                 return {
                     "status": "failed",
-                    "logs": ["❌ No voice input"]
+                    "command": {},
+                    "logs": ["❌ No voice input"],
+                    "state": self.context.state,
+                    "holding": self.context.holding
+
                 }
 
             if speech_out["status"] != "ok":
 
                 return {
                     "status": "failed",
-                    "logs": ["❌ Speech error"]
+                    "command": {},
+                    "logs": ["❌ Speech error"],
+                    "state": self.context.state,
+                    "holding": self.context.holding
                 }
 
             command = speech_out["command"]
 
         else:
 
-            parts = input_command.lower().split()
+            if isinstance(input_command, dict):
 
-            action = parts[0] if len(parts) > 0 else "pick"
+                command = input_command
 
-            obj = parts[-1] if len(parts) > 1 else None
+            else:
 
-            command = {
-                "action": action,
-                "object": obj,
-                "confidence": 1.0
-            }
+                parts = input_command.lower().split()
 
+                # remove wake word properly
+                if parts and parts[0] in ["robo", "robot"]:
+                    parts = parts[1:]
+
+                action = parts[0] if len(parts) > 0 else "pick"
+                # MOVE COMMANDS
+                if action == "move":
+
+                    direction = parts[1] if len(parts) > 1 else "forward"
+
+                    command = {
+                        "action": "move",
+                        "direction": direction,
+                        "confidence": 1.0
+                    }
+
+                # PICK / DROP COMMANDS
+                else:
+
+                    obj = parts[-1] if len(parts) > 1 else None
+
+                    command = {
+                        "action": action,
+                        "object": obj,
+                        "confidence": 1.0
+                    }
         logs.append(f"🎯 Action: {command['action']}")
 
         if command.get("object"):
@@ -262,8 +294,10 @@ class MasterAgent:
 
             return {
                 "status": "completed",
+                "command": {},
                 "logs": logs,
-                "state": self.context.state
+                "state": self.context.state,
+                "holding": self.context.holding
             }
 
         # =====================================================
@@ -271,18 +305,20 @@ class MasterAgent:
         # =====================================================
         if command["action"] == "move":
 
-            logs.append("🚗 Moving robot")
+            direction = command.get("direction", "forward")
 
-            time.sleep(2)
+            logs.append(f" Moving robot → {direction}")
 
-            logs.append("✅ Movement completed")
+            # call motor driver properly
+            self.motor.move(direction)
 
             return {
                 "status": "completed",
-                "logs": logs,
-                "state": self.context.state
+                "command": command,
+                "state": self.context.state,
+                "holding": self.context.holding,
+                "logs": logs
             }
-
         # =====================================================
         # VISION
         # =====================================================
@@ -296,13 +332,24 @@ class MasterAgent:
 
             return {
                 "status": "failed",
-                "logs": logs
+                "command": command,
+                "logs": logs,
+                "state": self.context.state,
+                "holding": self.context.holding
             }
 
         detections = vision_out["detections"]
 
         target_object = command.get("object")
 
+        if command.get("action") == "move":
+            return {
+                "status": "completed",
+                "command": command,
+                "state": self.context.state,
+                "holding": self.context.holding,
+                "logs": ["🚗 Movement executed"]
+            }
         obj = self.vision.track_object(
             detections,
             target_object
@@ -320,7 +367,10 @@ class MasterAgent:
 
             return {
                 "status": "failed",
-                "logs": logs
+                "command": command,
+                "logs": logs,
+                "state": self.context.state,
+                "holding": self.context.holding
             }
 
         logs.append(f"✅ Detected: {obj['label']}")
@@ -342,7 +392,10 @@ class MasterAgent:
 
             return {
                 "status": "failed",
-                "logs": logs
+                "command": command,
+                "logs": logs,
+                "state": self.context.state,
+                "holding": self.context.holding
             }
 
         logs.append("✅ Object reached")
@@ -354,8 +407,8 @@ class MasterAgent:
 
         z = self.estimate_depth(obj)
 
-        x = (cx - 320) * 0.1
-        y = (cy - 240) * 0.1
+        x = (cx - 320) * 0.05
+        y = (cy - 240) * 0.05
 
         logs.append(f"📌 3D Position: {(x, y, z)}")
 
@@ -366,34 +419,27 @@ class MasterAgent:
 
         angles = self.ik.solve(x, y, z)
 
+        print("IK OUTPUT:", angles)
+
         if not angles:
 
             logs.append("⚠️ IK failed → fallback")
 
-            angles = {
-                "servo1": 90,
-                "servo2": 90,
-                "servo3": 90,
-                "servo4": 90,
-                "servo5": 90,
-                "servo6": 90,
-                "servo7": 90
-            }
-            print("IK OUTPUT:", angles)
-            default_angles = {
-                "servo1": 90,
-                "servo2": 90,
-                "servo3": 90,
-                "servo4": 90,
-                "servo5": 90,
-                "servo6": 90,
-                "servo7": 90
-            }
+            angles = {}
 
-            for key, value in default_angles.items():
+        # Always ensure required servos exist
+        default_angles = {
+            "servo1": 90,
+            "servo2": 90,
+            "servo3": 90,
+            "servo4": 90,
+            "servo5": 90
+        }
 
-                if key not in angles:
-                    angles[key] = value
+        for key, value in default_angles.items():
+
+            if key not in angles:
+                angles[key] = value
 
         # =====================================================
         # STEPS
@@ -424,7 +470,11 @@ class MasterAgent:
 
             return {
                 "status": "failed",
-                "logs": logs
+                "command": command,
+                "logs": logs,
+                "state": self.context.state,
+                "holding": self.context.holding
+
             }
 
         logs.append("✅ Plan approved")
@@ -480,8 +530,12 @@ class MasterAgent:
 
                     return {
                         "status": "failed",
+                        "command": command,
                         "logs": logs,
-                        "execution": execution_logs
+                        "execution": execution_logs,
+                        "state": self.context.state,
+                        "holding": self.context.holding
+
                     }
 
             time.sleep(0.5)

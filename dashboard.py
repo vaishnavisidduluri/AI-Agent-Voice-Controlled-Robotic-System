@@ -308,22 +308,41 @@ with right:
 # =========================================================
 result = None
 
-if st.session_state.running and user_input:
+if st.session_state.running and user_input and st.session_state.get("last_input") != user_input:
 
     try:
 
         # -------------------------------------------------
         # CONVERT TEXT → COMMAND
         # -------------------------------------------------
-        words = user_input.lower().split()
+        if isinstance(user_input, str):
+            words = user_input.lower().split()
+        else:
+            words = str(user_input).lower().split()
 
-        action = words[0] if len(words) > 0 else None
-        obj = words[-1] if len(words) > 1 else None
+        if words[0] == "robo":
+            words = words[1:]
 
-        command = {
-            "action": action,
-            "object": obj
-        }
+        if "move" in words:
+            action = "move"
+            direction_index = words.index("move") + 1
+            direction = words[direction_index] if direction_index < len(words) else "forward"
+
+            command = {
+                "action": "move",
+                "object": None,
+                "direction": direction
+            }
+
+        else:
+            action = "pick"
+            obj = words[-1] if len(words) > 0 else None
+
+            command = {
+                "action": action,
+                "object": obj,
+                "direction": direction
+            }
 
         # -------------------------------------------------
         # MASTER AGENT EXECUTION
@@ -334,9 +353,10 @@ if st.session_state.running and user_input:
 
             for log in result["logs"]:
                 add_log(log)
-
+        st.session_state.last_input = user_input
     except Exception as e:
         add_log(f"❌ Error: {e}")
+    
 
 # =========================================================
 # LOWER SECTION
@@ -357,16 +377,25 @@ with col1:
 
     if result:
 
-        st.write(f"Action → {result['command']['action']}")
-        st.write(f"Object → {result['command']['object']}")
-        st.write(f"State → {result['state']}")
-        st.write(f"Holding → {result['holding']}")
+        cmd = result.get("command", {})
+
+        # ACTION
+        st.write(f"Action → {cmd.get('action', '-')}")
+
+        # OBJECT or DIRECTION
+        if cmd.get("action") == "move":
+            st.write(f"Direction → {cmd.get('direction', '-')}")
+        else:
+            st.write(f"Object → {cmd.get('object', '-')}")
+
+        # SAFE STATE ACCESS
+        st.write(f"State → {result.get('state', 'idle')}")
+        st.write(f"Holding → {result.get('holding', False)}")
 
     else:
         st.info("Waiting for robot execution...")
 
     st.markdown('</div>', unsafe_allow_html=True)
-
 # =========================================================
 # SERVO EXECUTION
 # =========================================================
@@ -417,5 +446,4 @@ st.markdown('</div>', unsafe_allow_html=True)
 # =========================================================
 # AUTO REFRESH
 # =========================================================
-time.sleep(0.1)
-st.rerun()
+time.sleep(0.5)

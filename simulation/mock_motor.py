@@ -30,3 +30,6 @@ class MockMotorDriver:
 
     def stop_all(self):
         self.stop()
+
+    def move(self, direction):
+        print(f"[SIM] Moving {direction}")

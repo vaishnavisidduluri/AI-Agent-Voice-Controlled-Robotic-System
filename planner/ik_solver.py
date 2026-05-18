@@ -55,16 +55,15 @@ class IKSolver:
                 theta5 = 110
             else:
                 theta5 = 70
-
+            def clamp(val, min_v=0, max_v=180):
+                return max(min_v, min(max_v, val))
             return {
-                "servo1": int(90 + theta1),
-                "servo2": int(theta2),
-                "servo3": int(theta3),
-                "servo4": int(theta4),
-                "servo5": int(theta5),
-
+                "servo1": clamp(int(90 + theta1)),
+                "servo2": clamp(int(theta2)),
+                "servo3": clamp(int(theta3)),
+                "servo4": clamp(int(theta4)),
+                "servo5": clamp(int(theta5))
             }
-
         except Exception as e:
             print(" IK Error:", e)
             return None

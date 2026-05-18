@@ -14,3 +14,6 @@ class MotorDriver:
 
     def stop(self):
         print("[HW] Stop motors")
+
+def move(self, direction):
+    print(f"[HW] Moving {direction}")
